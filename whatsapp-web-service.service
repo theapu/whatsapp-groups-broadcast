@@ -1,0 +1,22 @@
+[Unit]
+Description=Whatsapp-web-service
+After=syslog.target network.target
+
+[Service]
+#Environment=NODE_ENV=production
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/opt/node-apps/node-v15.0.1/bin"
+ExecStart=/opt/node-apps/node-v15.0.1/bin/node /opt/node-apps/whatsapp-web/sendmessage.js
+Restart=on-failure
+KillSignal=SIGINT
+
+# log output to syslog as 'login-proof'
+SyslogIdentifier=whatsapp-web-service
+StandardOutput=syslog
+
+# non-root user to run as
+WorkingDirectory=/opt/node-apps/whatsapp-web
+User=whatsappuser
+Group=whatsappuser
+
+[Install]
+WantedBy=multi-user.target
