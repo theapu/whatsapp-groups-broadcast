@@ -27,6 +27,7 @@ with the whatsapp groups
 const bradcastchannelname = "Test Broadcast Group";
 
 with the broadcast group created.
+
 5. Update alertmaillist, transporter and mailoptions variables for email alerts about service.
 6. Create a user for running as a daemon   
 7. Make required changes to whatsapp-web-service.service and copy it to /ect/systemd/system/ and enable service
