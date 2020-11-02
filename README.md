@@ -36,7 +36,7 @@ with the broadcast group created.
 ## Setting up scheduling and sending broadcast messages
 whatsapp-groups-broadcast uses following command syntax for scheduling and sending broadcast messages. Messages start with !bot@ are special instuction messages. These messages are to be sent to the broadcast group setup in setp 3 in configuration.
 
-###Commands
+### Commands
 
 !bot@listmsgs - List scheduled messages with scheduled time.
 
