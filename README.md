@@ -59,4 +59,16 @@ If !bot@grpinc or !bot@grpexc is used without !bot@msg[{Time}], message will be 
   
 !bot@help - Shows the help information message.
 
-Any message sent to Broadcast group that does not start with a command will be broadcast to all groups
+Any message sent to Broadcast group that does not start with a command will be broadcast to all groups.
+
+## Examples
+This message sent to Broadcast group will be sent at 2020-11-05 8 PM. (The text after !bot@msg[2020-11-05 20:00:00])
+
+!bot@msg[2020-11-05 20:00:00]
+This message will be deliverd at 2020-11-05 20:00:00
+
+This message sent to Broadcast group will be sent at 2020-11-05 8 PM to groups excluding the groups named YAWA and Test group. (The text after !bot@grpsexc["YAWA","Test group"])
+
+!bot@msg[2020-11-05 20:00:00]
+!bot@grpsexc["YAWA","Test group"]
+This message will be deliverd at 2020-11-05 20:00:00 to some groups.
