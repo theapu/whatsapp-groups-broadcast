@@ -73,5 +73,11 @@ This message will be deliverd at 2020-11-05 20:00:00
 This message sent to Broadcast group will be sent at 2020-11-05 8 PM to groups excluding the groups named YAWA and Test group. (The text after !bot@grpsexc["YAWA","Test group"])
 
 !bot@msg[2020-11-05 20:00:00]
-!bot@grpsexc["YAWA","Test group"]
+!bot@grpexc["YAWA","Test group"]
+This message will be deliverd at 2020-11-05 20:00:00 to some groups.
+
+This message will be delivered only to YAWA" and "Test group"
+
+!bot@msg[2020-11-05 20:00:00]
+!bot@grpinc["YAWA","Test group"]
 This message will be deliverd at 2020-11-05 20:00:00 to some groups.
