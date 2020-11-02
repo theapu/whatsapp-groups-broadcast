@@ -2,7 +2,7 @@
 Nodjes service to broadcast messages to multiple whatsapp group
 
 ## Introduction
-whatsapp-groups-broadcast is a nodejs service to send messages to multiple whats app groups and to send scheduled messages to groups.
+whatsapp-groups-broadcast is a nodejs service to send messages to multiple whatsapp groups and to send scheduled messages to groups.
 ### How it works
 It uses whatsapp-web.js node module to esatablish a whatsapp web connection. A group is created for users who have previlage to send broadcast messages. Any message sent to this group will be sent to a list of whatsapp groups specified. Only text messages are supported. Attachments are not supported now.
 
@@ -56,7 +56,9 @@ Use !bot@grpinc or !bot@grpexc after !bot@msg[{Time}] for scheduled message.
   
 If !bot@grpinc or !bot@grpexc is used without !bot@msg[{Time}], message will be sent immediatly to the groups specified according to the !bot@grpinc or !bot@grpexc list.
   
-!bot@del[{id}] - To delete a scheduled message. Use !bot@listmsgs to find id. id is the the number before the first '|' of the response messages.!bot@info - Used to sent information messages to Broadcast group.
+!bot@del[{id}] - To delete a scheduled message. Use !bot@listmsgs to find id. id is the the number before the first '|' of the response messages.
+
+!bot@info - Used to sent information messages to Broadcast group.
   
 !bot@help - Shows the help information message.
 
