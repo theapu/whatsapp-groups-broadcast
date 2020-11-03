@@ -114,11 +114,20 @@ client.on('message', async msg => {
     if (chat.isGroup) {
         if (chat.name == bradcastchannelname) {
             var message = msg.body;
+            if (msg.hasMedia) {
+                var attachmentData = await msg.downloadMedia();
+            } else {
+                var attachmentData = '';
+            }
             var chats = await client.getChats();
             if (check_if_process_message(message)) {
-                process_message(wagroupslist, chats, message);
+                process_message(wagroupslist, chats, message, attachmentData);
             } else {
-                send_group_message(wagroupslist, chats, message);
+                try {
+                    send_group_message(wagroupslist, chats, message, attachmentData);
+                } catch(error) {
+                    console.log(error);
+                }
             }
         }
     }
@@ -127,18 +136,27 @@ client.on('message', async msg => {
 client.on('message_create', async msg => {
     // Fired on all message creations, including your own
     // do stuff here
-    var wagroupslist = JSON.parse("[" + wamsgroupslist + "]");   
+    var wagroupslist = JSON.parse("[" + wamsgroupslist + "]");
     console.log("Message created. ID: " + msg['id']['id']);
     if (msg.fromMe) {
         let chat = await msg.getChat();
         if (chat.isGroup) {
             if (chat.name == bradcastchannelname) {
                 var message = msg.body;
+                if (msg.hasMedia) {
+                    var attachmentData = await msg.downloadMedia();
+                } else {
+                    var attachmentData = '';
+                }
                 var chats = await client.getChats();
                 if (check_if_process_message(message)) {
-                    process_message(wagroupslist, chats, message);
+                    process_message(wagroupslist, chats, message, attachmentData);
                 } else {
-                    send_group_message(wagroupslist, chats, message);
+                    try {
+                        send_group_message(wagroupslist, chats, message, attachmentData);
+                    } catch(error) {
+                        console.log(error);
+                    }
                 }
             }
         }
@@ -152,18 +170,23 @@ client.on('message_ack', function (msg, ack) {
     }
 });
 
-var sendmessage = function (group, chats, message) {
+var sendmessage = function (group, chats, message, attachmentData) {
     return new Promise(function (resolve, reject) {
+        var promisearray = [];
         var groupname = group;
         var groupobj = chats.find(o => o.name === groupname);
         if (groupobj) {
             var groupid = groupobj['id']['_serialized'];
             console.log("Group id " + groupid);
-            var msgpromise = groupobj.sendMessage(message);
+            if (attachmentData == '' || attachmentData == null) {
+                promisearray.push(groupobj.sendMessage(message));
+            } else {
+                promisearray.push(groupobj.sendMessage(message));
+                promisearray.push(groupobj.sendMessage(attachmentData));
+            }
             //var msgpromise = client.sendMessage(groupid, message);
-            msgpromise.then(function (result) {
-                //console.log(result);
-                var chatid = result['id']['_serialized'];
+            Promise.all(promisearray).then(function (result) {
+                var chatid = result[0]['id']['_serialized'];
                 console.log('Message sent to group ' + groupname);
                 resolve(chatid);
             }, function (err) {
@@ -195,11 +218,11 @@ var sendmessage = function (group, chats, message) {
     });
 }
 
-var send_group_message = function (groupslist, chats, message) {
+var send_group_message = function (groupslist, chats, message, attachmentData) {
     return new Promise(function (resolve, reject) {
         for (let i = 0; i < groupslist.length; i++) {
             var group = groupslist[i];
-            var result = sendmessage(group, chats, message);
+            var result = sendmessage(group, chats, message, attachmentData);
             result.then(function (result) {
                 resolve("Message sent to group " + group);
             }, function (err) {
@@ -224,14 +247,14 @@ var send_alert_mails = async function (inputjson) {
 }
 
 //0 0 5 * * *
-var start_scheduled_job = function (schedule, message, groupslist, jobname) {
+var start_scheduled_job = function (schedule, message, attachmentData, groupslist, jobname) {
     var job = new CronJob(schedule, async function () {
         var timestamp = new Date();
         console.log("Sending message at " + timestamp);
         //var messagefile = messagesfolder + currentdate + '/message.txt';
         try {
             var chats = await client.getChats();
-            send_group_message(groupslist, chats, message)
+            send_group_message(groupslist, chats, message, attachmentData)
                 .then(function () {
                     var statement = "UPDATE scheduledtasks SET status='done' WHERE jobname=?";
                     var params = [jobname];
@@ -267,12 +290,12 @@ var check_if_process_message = function (message) {
     }
 }
 
-var process_message = function (groupslist, chats, message) {
+var process_message = function (groupslist, chats, message, attachmentData) {
     var msg = message.trim();
     //List schedules
     var regexlist = /^(\!bot\@listmsgs(\[(.+?)\])?)/igm;
     //List groups
-    var regexgrplist = /^(\!bot\@listgrps)/igm;    
+    var regexgrplist = /^(\!bot\@listgrps)/igm;
     //Delete schedule
     var regexdel = /^(\!bot\@del\[(.+?)\])/igm;
     //Schedule a message.    
@@ -288,26 +311,26 @@ var process_message = function (groupslist, chats, message) {
         console.log("Ignoring Info message.");
     } else if (regexhelp.test(msg)) {
         console.log("Displaying Help message.");
-        var info = "!bot@info\nCommands\n" + 
-        "!bot@listmsgs - List scheduled messages with scheduled time.\n" + 
-        "!bot@listgrps - List the groups configured with the bot.\n" + 
-        "!bot@msg[<Time>] - Schedule a message at Time in YYYY-MM-DD HH:mm:ss format.\n" + 
-        "Enter message text afer !bot@msg[<Time>].\n" +
-        "If group names are not specified using !bot@grpinc or !bot@grpexc, " + 
-        "the message will be sent to all groups.\n" + 
-        "!bot@grpinc[<Groups the message to be sent>] - Groups name list should be in array format. " +
-        "Use !bot@listgrps to get the list of groups, copy it and edit.\n" + 
-        "!bot@grpexc[<Groups to be excluded when sending message>] - Groups name list should be in array format. " +
-        "Use !bot@listgrps to get the list of groups, copy it and edit.\n" + 
-        "Use !bot@grpinc or !bot@grpexc after !bot@msg[<Time>] for scheduled message.\n" +
-        "If !bot@grpinc or !bot@grpexc is used without !bot@msg[<Time>], message will be sent " +
-        "immediatly to the groups specified according to the !bot@grpinc or !bot@grpexc list.\n" +
-        "!bot@del[<id>] - To delete a scheduled message. Use !bot@listmsgs to find id. " + 
-        "id is the the number before the first '|' of the response messages." +
-        "!bot@info - Used to sent information messages to Broadcast group.\n" +
-        "!bot@help - Shows the help information message.\n\n" + 
-        "Any message sent to Broadcast group that does not start with a command " + 
-        "will be broadcast to all groups";
+        var info = "!bot@info\nCommands\n" +
+            "!bot@listmsgs - List scheduled messages with scheduled time.\n" +
+            "!bot@listgrps - List the groups configured with the bot.\n" +
+            "!bot@msg[<Time>] - Schedule a message at Time in YYYY-MM-DD HH:mm:ss format.\n" +
+            "Enter message text afer !bot@msg[<Time>].\n" +
+            "If group names are not specified using !bot@grpinc or !bot@grpexc, " +
+            "the message will be sent to all groups.\n" +
+            "!bot@grpinc[<Groups the message to be sent>] - Groups name list should be in array format. " +
+            "Use !bot@listgrps to get the list of groups, copy it and edit.\n" +
+            "!bot@grpexc[<Groups to be excluded when sending message>] - Groups name list should be in array format. " +
+            "Use !bot@listgrps to get the list of groups, copy it and edit.\n" +
+            "Use !bot@grpinc or !bot@grpexc after !bot@msg[<Time>] for scheduled message.\n" +
+            "If !bot@grpinc or !bot@grpexc is used without !bot@msg[<Time>], message will be sent " +
+            "immediatly to the groups specified according to the !bot@grpinc or !bot@grpexc list.\n" +
+            "!bot@del[<id>] - To delete a scheduled message. Use !bot@listmsgs to find id. " +
+            "id is the the number before the first '|' of the response messages." +
+            "!bot@info - Used to sent information messages to Broadcast group.\n" +
+            "!bot@help - Shows the help information message.\n\n" +
+            "Any message sent to Broadcast group that does not start with a command " +
+            "will be broadcast to all groups";
         var result = sendmessage(bradcastchannelname, chats, info);
         result.then(function (result) {
             console.log("Info Message sent to group " + bradcastchannelname);
@@ -315,7 +338,7 @@ var process_message = function (groupslist, chats, message) {
             console.log("Failed to sent to group " + bradcastchannelname);
         }).catch(function (err) {
             console.log("Failed to sent to group " + bradcastchannelname);
-        });                
+        });
     } else if (regexgrplist.test(msg)) {
         console.log("Listing groups.");
         var info = "!bot@info\n" + JSON.stringify(groupslist);
@@ -326,7 +349,7 @@ var process_message = function (groupslist, chats, message) {
             console.log("Failed to sent to group " + bradcastchannelname);
         }).catch(function (err) {
             console.log("Failed to sent to group " + bradcastchannelname);
-        });        
+        });
     } else if (regexlist.test(msg)) {
         var items = msg.match(regexlist);
         var item = items[0].replace(regexlist, '$3');
@@ -383,6 +406,15 @@ var process_message = function (groupslist, chats, message) {
         scheduleid = scheduleid[0].replace(regexdel, '$2');
         scheduleid = parseInt(scheduleid, 10);
         console.log("Looking for job with id " + scheduleid + " for deletion");
+        var stopstmnt = "SELECT jobname FROM scheduledtasks WHERE id = ?";
+        db.each(stopstmnt, [scheduleid], function (err, row) {
+            if (err) {
+                console.log("Delete job creation failed " + err);
+            } else {
+                var job = crontab[row.jobname];
+                job.stop();
+            }
+        });
         var statement = "DELETE FROM scheduledtasks WHERE id = ?";
         db.run(statement, [scheduleid], function (err, row) {
             if (err) {
@@ -400,62 +432,74 @@ var process_message = function (groupslist, chats, message) {
             }
         });
     } else if (regexschedule.test(msg)) {
-        var scheduledate = msg.match(regexschedule);
-        scheduledate = scheduledate[0].replace(regexschedule, '$2');
-        var groupsinclude = msg.match(regexinclude);
-        var groupsexclude = msg.match(regexexclude);
-        //console.log(groupsinclude);
-        let msggroupslist = groupslist;
-        if (groupsinclude) {
-            groupsinclude = groupsinclude[0].replace(regexinclude, '$2');
-            msggroupslist = JSON.parse("[" + groupsinclude + "]");
-        } else if (groupsexclude) {
-            groupsexclude = groupsexclude[0].replace(regexexclude, '$2');
-            var exculedarray = JSON.parse("[" + groupsexclude + "]");
-            for (var i = 0; i < exculedarray.length; i++) {
-                //console.log(exculedarray[i]);
-                var index = msggroupslist.indexOf(exculedarray[i]);
-                if (index > -1) {
-                    msggroupslist.splice(index, 1);
+        if (attachmentData == '' || attachmentData == null) {
+            var scheduledate = msg.match(regexschedule);
+            scheduledate = scheduledate[0].replace(regexschedule, '$2');
+            var groupsinclude = msg.match(regexinclude);
+            var groupsexclude = msg.match(regexexclude);
+            //console.log(groupsinclude);
+            let msggroupslist = groupslist;
+            if (groupsinclude) {
+                groupsinclude = groupsinclude[0].replace(regexinclude, '$2');
+                msggroupslist = JSON.parse("[" + groupsinclude + "]");
+            } else if (groupsexclude) {
+                groupsexclude = groupsexclude[0].replace(regexexclude, '$2');
+                var exculedarray = JSON.parse("[" + groupsexclude + "]");
+                for (var i = 0; i < exculedarray.length; i++) {
+                    //console.log(exculedarray[i]);
+                    var index = msggroupslist.indexOf(exculedarray[i]);
+                    if (index > -1) {
+                        msggroupslist.splice(index, 1);
+                    }
                 }
             }
+            console.log("Sending message to groups " + JSON.stringify(msggroupslist));
+            var schedulemsg = msg.replace(regexschedule, '');
+            schedulemsg = schedulemsg.replace(regexinclude, '');
+            schedulemsg = schedulemsg.replace(regexexclude, '');
+            schedulemsg = schedulemsg.trim();
+            var timestamp = moment().toString();
+            //console.log(scheduledate);
+            //console.log(schedulemsg);
+            var varname = crypto.randomBytes(5).toString('hex');
+            var statement = "INSERT INTO scheduledtasks (jobname,schedule,message,status,groupslist,timestamp) " +
+                "VALUES(?,?,?,?,?,?);";
+            var params = [varname, scheduledate, schedulemsg, '', JSON.stringify(msggroupslist), timestamp];
+            db.run(statement, params, function (err, row) {
+                if (err) {
+                    console.log("Cron job creation failed " + err);
+                } else {
+                    console.log("Cron job added");
+                    var dateobj = moment(scheduledate, 'YYYY-MM-DD HH:mm:ss').toDate();
+                    try {
+                        global[varname] = start_scheduled_job(dateobj, schedulemsg, attachmentData, msggroupslist, varname);
+                        crontab[varname] = global[varname];
+                        var info = "!bot@info\nScheduld job added at " + scheduledate +
+                            " with Jobname " + varname;
+                        var result = sendmessage(bradcastchannelname, chats, info);
+                        result.then(function (result) {
+                            console.log("Info Message sent to group " + bradcastchannelname);
+                        }, function (err) {
+                            console.log("Failed to sent to group " + bradcastchannelname);
+                        }).catch(function (err) {
+                            console.log("Failed to sent to group " + bradcastchannelname);
+                        });
+                    } catch (err) {
+                        console.log("Failed to schedule job " + err);
+                    }
+                }
+            });
+        } else {
+            var info = "!bot@info\nSending scheduled messages with attachment is not possible";
+            var result = sendmessage(bradcastchannelname, chats, info);
+            result.then(function (result) {
+                console.log("Info Message sent to group " + bradcastchannelname);
+            }, function (err) {
+                console.log("Failed to sent to group " + bradcastchannelname);
+            }).catch(function (err) {
+                console.log("Failed to sent to group " + bradcastchannelname);
+            });
         }
-        console.log("Sending message to groups " + JSON.stringify(msggroupslist));
-        var schedulemsg = msg.replace(regexschedule, '');
-        schedulemsg = schedulemsg.replace(regexinclude, '');
-        schedulemsg = schedulemsg.replace(regexexclude, '');
-        schedulemsg = schedulemsg.trim();
-        var timestamp = moment().toString();
-        //console.log(scheduledate);
-        //console.log(schedulemsg);
-        var varname = crypto.randomBytes(5).toString('hex');
-        var statement = "INSERT INTO scheduledtasks (jobname,schedule,message,status,groupslist,timestamp) " +
-            "VALUES(?,?,?,?,?,?);";
-        var params = [varname, scheduledate, schedulemsg, '', JSON.stringify(msggroupslist), timestamp];
-        db.run(statement, params, function (err, row) {
-            if (err) {
-                console.log("Cron job creation failed " + err);
-            } else {
-                console.log("Cron job added");
-                var dateobj = moment(scheduledate, 'YYYY-MM-DD HH:mm:ss').toDate();
-                try {
-                    global[varname] = start_scheduled_job(dateobj, schedulemsg, msggroupslist, varname);
-                    crontab[varname] = global[varname];
-                    var info = "!bot@info\nScheduld job added at " + scheduledate +
-                        " with Jobname " + varname;
-                    var result = sendmessage(bradcastchannelname, chats, info);
-                    result.then(function (result) {
-                        console.log("Info Message sent to group " + bradcastchannelname);
-                    }, function (err) {
-                        console.log("Failed to sent to group " + bradcastchannelname);
-                    }).catch(function (err) {
-                        console.log("Failed to sent to group " + bradcastchannelname);
-                    });
-                } catch (err) {
-                    console.log("Failed to schedule job " + err);
-                }
-            }
-        });
     } else if (regexinclude.test(msg) || regexexclude.test(msg)) {
         var groupsinclude = msg.match(regexinclude);
         var groupsexclude = msg.match(regexexclude);
@@ -482,8 +526,9 @@ var process_message = function (groupslist, chats, message) {
         //console.log(scheduledate);
         //console.log(schedulemsg);
         try {
-            send_group_message(msggroupslist, chats, schedulemsg);
-            var info = "!bot@info\nBrodcasting message to " + msggroupslist;            
+            //console.log(attachmentData);
+            send_group_message(msggroupslist, chats, schedulemsg, attachmentData);
+            var info = "!bot@info\nBrodcasting message to " + msggroupslist;
             var result = sendmessage(bradcastchannelname, chats, info);
             result.then(function (result) {
                 console.log("Info Message sent to group " + bradcastchannelname);
@@ -496,8 +541,8 @@ var process_message = function (groupslist, chats, message) {
             console.log("Failed send message " + err);
         }
     } else {
-        var info = "!bot@info\nCommand syntax not recognized. " + 
-                   "Send !bot@help to view allowed commands";            
+        var info = "!bot@info\nCommand syntax not recognized. " +
+            "Send !bot@help to view allowed commands";
         var result = sendmessage(bradcastchannelname, chats, info);
         result.then(function (result) {
             console.log("Info Message sent to group " + bradcastchannelname);
