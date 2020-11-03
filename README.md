@@ -45,7 +45,7 @@ whatsapp-groups-broadcast uses following command syntax for scheduling and sendi
 
 !bot@msg[{Time}] - Schedule a message at Time in YYYY-MM-DD HH:mm:ss format.
   
-Enter message text afer !bot@msg[<Time>].
+Enter message text afer !bot@msg[{Time}].
   
 If group names are not specified using !bot@grpinc or !bot@grpexc, the message will be sent to all groups.
 
@@ -66,19 +66,27 @@ If !bot@grpinc or !bot@grpexc is used without !bot@msg[{Time}], message will be 
 Any message sent to Broadcast group that does not start with a command will be broadcast to all groups.
 
 ## Examples
+### Schedule a broadcast message
 This message sent to Broadcast group will be sent at 2020-11-05 8 PM. (The text after !bot@msg[2020-11-05 20:00:00])
 
 !bot@msg[2020-11-05 20:00:00]
 This message will be deliverd at 2020-11-05 20:00:00
 
-This message sent to Broadcast group will be sent at 2020-11-05 8 PM to groups excluding the groups named YAWA and Test group. (The text after !bot@grpsexc["YAWA","Test group"])
+### Send messages to specific groups
+This message sent to Broadcast group will be sent at 2020-11-05 8 PM to groups excluding the groups named YAWA and Test group. (The text after !bot@grpexc["YAWA","Test group"])
 
+### Send scheduled messages to specific groups
+#### Excluding groups
 !bot@msg[2020-11-05 20:00:00]
 !bot@grpexc["YAWA","Test group"]
-This message will be deliverd at 2020-11-05 20:00:00 to some groups.
+This message will be deliverd at 2020-11-05 20:00:00 to groups other than YAMWA and Test group.
 
+#### Including groups
 This message will be delivered only to YAWA" and "Test group"
-
 !bot@msg[2020-11-05 20:00:00]
 !bot@grpinc["YAWA","Test group"]
-This message will be deliverd at 2020-11-05 20:00:00 to some groups.
+This message will be deliverd at 2020-11-05 20:00:00 to AMWA and Test group.
+
+#### Delete scheduled message
+List scheduled messages using !bot@listmsgs. The result will be in {id}|{schedule time} {message text} format
+Delete the a scheduled message using !bot@del[{id}]
