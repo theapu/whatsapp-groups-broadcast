@@ -104,41 +104,14 @@ client.on('ready', function () {
             }
         }
     });
+    scheduled_job_cleaner();
 });
 
 client.on('message', async msg => {
 //List of whats app groups to which messages are to be sent.  
     var wagroupslist = JSON.parse("[" + wamsgroupslist + "]");
-    console.log("Message received. ID: " + msg['id']['id']);
-    let chat = await msg.getChat();
-    if (chat.isGroup) {
-        if (chat.name == bradcastchannelname) {
-            var message = msg.body;
-            if (msg.hasMedia) {
-                var attachmentData = await msg.downloadMedia();
-            } else {
-                var attachmentData = '';
-            }
-            var chats = await client.getChats();
-            if (check_if_process_message(message)) {
-                process_message(wagroupslist, chats, message, attachmentData);
-            } else {
-                try {
-                    send_group_message(wagroupslist, chats, message, attachmentData);
-                } catch(error) {
-                    console.log(error);
-                }
-            }
-        }
-    }
-});
-
-client.on('message_create', async msg => {
-    // Fired on all message creations, including your own
-    // do stuff here
-    var wagroupslist = JSON.parse("[" + wamsgroupslist + "]");
-    console.log("Message created. ID: " + msg['id']['id']);
-    if (msg.fromMe) {
+    try {
+        console.log("Message received. ID: " + msg['id']['id']);
         let chat = await msg.getChat();
         if (chat.isGroup) {
             if (chat.name == bradcastchannelname) {
@@ -154,12 +127,48 @@ client.on('message_create', async msg => {
                 } else {
                     try {
                         send_group_message(wagroupslist, chats, message, attachmentData);
-                    } catch(error) {
+                    } catch (error) {
                         console.log(error);
                     }
                 }
             }
         }
+    } catch (err) {
+        console.log("Error reading message " + err);
+    }
+});
+
+client.on('message_create', async msg => {
+    // Fired on all message creations, including your own
+    // do stuff here
+    var wagroupslist = JSON.parse("[" + wamsgroupslist + "]");
+    try {
+        console.log("Message created. ID: " + msg['id']['id']);
+        if (msg.fromMe) {
+            let chat = await msg.getChat();
+            if (chat.isGroup) {
+                if (chat.name == bradcastchannelname) {
+                    var message = msg.body;
+                    if (msg.hasMedia) {
+                        var attachmentData = await msg.downloadMedia();
+                    } else {
+                        var attachmentData = '';
+                    }
+                    var chats = await client.getChats();
+                    if (check_if_process_message(message)) {
+                        process_message(wagroupslist, chats, message, attachmentData);
+                    } else {
+                        try {
+                            send_group_message(wagroupslist, chats, message, attachmentData);
+                        } catch (error) {
+                            console.log(error);
+                        }
+                    }
+                }
+            }
+        }
+    } catch (err) {
+        console.log("Error reading message " + err);
     }
 });
 
@@ -181,7 +190,13 @@ var sendmessage = function (group, chats, message, attachmentData) {
             if (attachmentData == '' || attachmentData == null) {
                 promisearray.push(groupobj.sendMessage(message));
             } else {
-                promisearray.push(groupobj.sendMessage(message));
+                var filename = '';
+                if (attachmentData.hasOwnProperty('filename')) {
+                    var filename = attachmentData.filename
+                }
+                if (filename != message) {
+                    promisearray.push(groupobj.sendMessage(message));
+                }
                 promisearray.push(groupobj.sendMessage(attachmentData));
             }
             //var msgpromise = client.sendMessage(groupid, message);
@@ -279,6 +294,20 @@ var start_scheduled_job = function (schedule, message, attachmentData, groupslis
         }
     }, null, true, 'Asia/Kolkata');
     return job;
+}
+
+var scheduled_job_cleaner = function(){
+    var job = new CronJob('0 */1 * * * *', async function () {
+        Object.keys(crontab).forEach(function(key) {
+            if (crontab[key].runOnce == true && crontab[key].running == false) {
+                console.log("Stopping job " + key + " since it is already finished.");
+                crontab[key].stop();
+                delete crontab[key];
+            } else {
+                console.log("Job " + key  + " is active.");
+            }
+          });
+    }, null, true, 'Asia/Kolkata');
 }
 
 var check_if_process_message = function (message) {
