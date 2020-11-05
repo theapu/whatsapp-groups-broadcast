@@ -10,12 +10,27 @@ const { Client, Location } = require('whatsapp-web.js');
 
 const wamsgroupslist = '"Test group","Whatever","YAWA","Group, with comma"';  
 
+var trueLog = console.log;
+/**
+ * Modified console log with time stamp
+ */
+console.log = function(msg) {
+    var time_stamp =  moment().format("DD-MM-YYYY h:mm:ss");
+    var log_message = "[" + time_stamp + "]: " + msg;
+    fs.appendFile('whatsappweb.log', log_message  + "\r\n", function(err) {
+        if(err) {
+            return trueLog(err);
+        }
+    });
+    trueLog(log_message);
+}
+
 //Variable to hold cron objects
 var crontab = {};
 
 let db = new sqlite3.Database('./cron.db', (err) => {
     if (err) {
-        console.error(err.message);
+        console.log(err.message);
     }
     console.log('Connected to the cron database.');
 });
@@ -31,6 +46,8 @@ const bradcastchannelname = "Test Broadcast Group";
 
 //Emails for alerts.
 const alertmaillist = 'user@mail.com,usr2@example.com';
+const devemaillist = 'dev@email.com';
+const debugmode = true;
 
 var transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -59,7 +76,7 @@ client.initialize();
 
 client.on('auth_failure', msg => {
     // Fired if session restore was unsuccessfull
-    console.error('AUTHENTICATION FAILURE', msg);
+    console.log('AUTHENTICATION FAILURE', msg);
     send_alert_mails({
         to: alertmaillist,
         subject: 'WhatsApp bot AUTHENTICATION FAILURE',
@@ -69,7 +86,7 @@ client.on('auth_failure', msg => {
 });
 
 client.on('disconnected', (reason) => {
-    console.log('Client was logged out', reason);
+    console.log('Client was logged out ' + reason);
     send_alert_mails({
         to: alertmaillist,
         subject: 'WhatsApp bot Client was logged out',
@@ -108,43 +125,23 @@ client.on('ready', function () {
 });
 
 client.on('message', async msg => {
-//List of whats app groups to which messages are to be sent.  
+    // if (debugmode) {
+    //     send_alert_mails({
+    //         to: devemaillist,
+    //         subject: 'Sayahna WhatsApp bot Client Developer Mail',
+    //         body: 'Sayahna WhatsApp bot Client Message received at ' + moment().toString() +
+    //             ". Message: " + JSON.stringify(msg)
+    //     });
+    // }
+    //List of whats app groups to which messages are to be sent.  
     var wagroupslist = JSON.parse("[" + wamsgroupslist + "]");
     try {
         console.log("Message received. ID: " + msg['id']['id']);
-        let chat = await msg.getChat();
-        if (chat.isGroup) {
-            if (chat.name == bradcastchannelname) {
-                var message = msg.body;
-                if (msg.hasMedia) {
-                    var attachmentData = await msg.downloadMedia();
-                } else {
-                    var attachmentData = '';
-                }
-                var chats = await client.getChats();
-                if (check_if_process_message(message)) {
-                    process_message(wagroupslist, chats, message, attachmentData);
-                } else {
-                    try {
-                        send_group_message(wagroupslist, chats, message, attachmentData);
-                    } catch (error) {
-                        console.log(error);
-                    }
-                }
-            }
-        }
-    } catch (err) {
-        console.log("Error reading message " + err);
-    }
-});
-
-client.on('message_create', async msg => {
-    // Fired on all message creations, including your own
-    // do stuff here
-    var wagroupslist = JSON.parse("[" + wamsgroupslist + "]");
-    try {
-        console.log("Message created. ID: " + msg['id']['id']);
-        if (msg.fromMe) {
+        var remote = msg['id']['remote'];
+        console.log("Message send from " + remote);
+        if (remote == 'status@broadcast') {
+            console.log("Not processing message since it is a status update message.");
+        } else {
             let chat = await msg.getChat();
             if (chat.isGroup) {
                 if (chat.name == bradcastchannelname) {
@@ -169,6 +166,72 @@ client.on('message_create', async msg => {
         }
     } catch (err) {
         console.log("Error reading message " + err);
+        if (debugmode) {
+            send_alert_mails({
+                to: devemaillist,
+                subject: 'Sayahna WhatsApp bot Client Developer Mail',
+                body: 'Sayahna WhatsApp bot Client Message received at ' + moment().toString() +
+                    ". Message: \n" + JSON.stringify(msg) + "\n" +
+                    "Error: \n" + err
+            });
+        }
+    }
+});
+
+client.on('message_create', async msg => {
+    // if (debugmode) {
+    //     send_alert_mails({
+    //         to: devemaillist,
+    //         subject: 'Sayahna WhatsApp bot Client Developer Mail',
+    //         body: 'Sayahna WhatsApp bot Client Message received at ' + moment().toString() +
+    //             ". Message: " + JSON.stringify(msg)
+    //     });
+    // }
+    // Fired on all message creations, including your own
+    // do stuff here
+    var wagroupslist = JSON.parse("[" + wamsgroupslist + "]");
+    try {
+        console.log("Message created. ID: " + msg['id']['id']);
+        var remote = msg['id']['remote'];
+        console.log("Message send from " + remote);
+        if (remote == 'status@broadcast') {
+            console.log("Not processing message since it is a status update message.");
+        } else {
+            if (msg.fromMe) {
+                let chat = await msg.getChat();
+                if (chat.isGroup) {
+                    if (chat.name == bradcastchannelname) {
+                        var message = msg.body;
+                        if (msg.hasMedia) {
+                            var attachmentData = await msg.downloadMedia();
+                        } else {
+                            var attachmentData = '';
+                        }
+                        var chats = await client.getChats();
+                        if (check_if_process_message(message)) {
+                            process_message(wagroupslist, chats, message, attachmentData);
+                        } else {
+                            try {
+                                send_group_message(wagroupslist, chats, message, attachmentData);
+                            } catch (error) {
+                                console.log(error);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    } catch (err) {
+        console.log("Error reading message " + err);
+        if (debugmode) {
+            send_alert_mails({
+                to: devemaillist,
+                subject: 'Sayahna WhatsApp bot Client Developer Mail',
+                body: 'Sayahna WhatsApp bot Client Message received at ' + moment().toString() +
+                    ". Message: \n" + JSON.stringify(msg) + "\n" +
+                    "Error: \n" + err
+            });
+        }
     }
 });
 
