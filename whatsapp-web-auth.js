@@ -8,7 +8,12 @@ if (fs.existsSync(SESSION_FILE_PATH)) {
     sessionCfg = require(SESSION_FILE_PATH);
 }
 
-const client = new Client({ puppeteer: { headless: true }, session: sessionCfg });
+const client = new Client({ puppeteer: { headless: true, 
+//Install latest version of google chrome and set path to binary here
+//if chromium that comes with puppeteer does not work.
+//               executablePath: '/usr/bin/chromium-browser',
+//               args: ['--no-sandbox', '--disable-setuid-sandbox'] 
+            }, session: sessionCfg });
 
 client.initialize();
 

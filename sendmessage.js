@@ -28,19 +28,6 @@ console.log = function(msg) {
 //Variable to hold cron objects
 var crontab = {};
 
-let db = new sqlite3.Database('./cron.db', (err) => {
-    if (err) {
-        console.log(err.message);
-    }
-    console.log('Connected to the cron database.');
-});
-
-db.serialize(function () {
-    db.run("CREATE TABLE IF NOT EXISTS scheduledtasks (id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-        "jobname TEXT, schedule TEXT, message TEXT, status TEXT, groupslist TEXT, " +
-        "timestamp TEXT)");
-});
-
 //The broadcast group through which messages are sent.
 const bradcastchannelname = "Test Broadcast Group";
 
@@ -64,13 +51,39 @@ var mailoptions = {
     //  html: '<p>Your html here</p>'// plain text body
 };
 
+let db = new sqlite3.Database('./cron.db', (err) => {
+    if (err) {
+        console.log(err.message);
+        send_alert_mails({
+            to: alertmaillist,
+            subject: 'WhatsApp bot Database connection failed',
+            body: 'WhatsApp bot Database connection failed at ' + moment().toString() +
+                ". Check logs for error message."
+        });        
+        process.exit(1);
+    } else {
+        console.log('Connected to the cron database.');
+    }    
+});
+
+db.serialize(function () {
+    db.run("CREATE TABLE IF NOT EXISTS scheduledtasks (id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+        "jobname TEXT, schedule TEXT, message TEXT, status TEXT, groupslist TEXT, " +
+        "timestamp TEXT)");
+});
+
 const SESSION_FILE_PATH = './session.json';
 let sessionCfg;
 if (fs.existsSync(SESSION_FILE_PATH)) {
     sessionCfg = require(SESSION_FILE_PATH);
 }
 
-const client = new Client({ puppeteer: { headless: true }, session: sessionCfg });
+const client = new Client({ puppeteer: { headless: true,
+//Install latest version of google chrome and set path to binary here
+//if chromium that comes with puppeteer does not work.
+//               executablePath: '/usr/bin/chromium-browser',
+//               args: ['--no-sandbox', '--disable-setuid-sandbox'] 
+        }, session: sessionCfg });
 
 client.initialize();
 
@@ -83,6 +96,7 @@ client.on('auth_failure', msg => {
         body: 'WhatsApp bot AUTHENTICATION FAILURE at ' + moment().toString() +
             ". Check logs for error message."
     });
+    process.exit(1);
 });
 
 client.on('disconnected', (reason) => {
@@ -93,6 +107,7 @@ client.on('disconnected', (reason) => {
         body: 'WhatsApp bot Client was logged out at ' + moment().toString() +
             ". Reason: " + reason
     });
+    process.exit(1);
 });
 
 client.on('ready', function () {
