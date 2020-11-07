@@ -4,11 +4,14 @@ const crypto = require("crypto");
 const moment = require('moment');
 const nodemailer = require('nodemailer');
 const sqlite3 = require('sqlite3').verbose();
+var mimetypes = require('mime-types')
 
 var CronJob = require('cron').CronJob;
-const { Client, Location } = require('whatsapp-web.js');
+const { Client, MessageMedia } = require('whatsapp-web.js');
 
 const wamsgroupslist = '"Test group","Whatever","YAWA","Group, with comma"';  
+
+const attachmentdir = './attachments';
 
 var trueLog = console.log;
 /**
@@ -68,7 +71,10 @@ let db = new sqlite3.Database('./cron.db', (err) => {
 
 db.serialize(function () {
     db.run("CREATE TABLE IF NOT EXISTS scheduledtasks (id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-        "jobname TEXT, schedule TEXT, message TEXT, status TEXT, groupslist TEXT, " +
+        "jobname TEXT, schedule TEXT, message TEXT, status TEXT, groupslist TEXT, attachmentid TEXT, " +
+        "timestamp TEXT)");
+    db.run("CREATE TABLE IF NOT EXISTS attachments (id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+        "attachmentid TEXT, filename TEXT, mimetype TEXT, " +
         "timestamp TEXT)");
 });
 
@@ -89,7 +95,7 @@ client.initialize();
 
 client.on('auth_failure', msg => {
     // Fired if session restore was unsuccessfull
-    console.log('AUTHENTICATION FAILURE', msg);
+    console.log('AUTHENTICATION FAILURE ' + msg);
     send_alert_mails({
         to: alertmaillist,
         subject: 'WhatsApp bot AUTHENTICATION FAILURE',
@@ -112,6 +118,9 @@ client.on('disconnected', (reason) => {
 
 client.on('ready', function () {
     console.log('READY');
+    if (!fs.existsSync(attachmentdir)){
+        fs.mkdirSync(attachmentdir);
+    }    
     var wagroupslist = JSON.parse("[" + wamsgroupslist + "]");
     //Start existing cron jobs.    
     db.each("SELECT * FROM scheduledtasks WHERE status != 'done'", function (err, row) {
@@ -122,7 +131,7 @@ client.on('ready', function () {
             var scheduledate = row.schedule;
             var schedulemsg = row.message;
             let msggroupslist = JSON.parse(row.groupslist);
-            var attachmentData = '';
+            var attachmentData = row.attachmentid;
             console.log("Starting job with name " + jobname);
             var dateobj = moment(scheduledate, 'YYYY-MM-DD HH:mm:ss').toDate();
             if (moment(scheduledate, "YYYY-MM-DD HH:mm:ss").isBefore(moment())) {
@@ -154,27 +163,32 @@ client.on('message', async msg => {
     try {
         console.log("Message received. ID: " + msg['id']['id']);
         var remote = msg['id']['remote'];
+        var msgtype = msg.type;
         console.log("Message send from " + remote);
         if (remote == 'status@broadcast') {
             console.log("Not processing message since it is a status update message.");
+        } else if (msgtype == 'location' || msgtype == 'vcard') {
+            console.log("Not processing message since it is type " + msgtype);
         } else {
             let chat = await msg.getChat();
             if (chat.isGroup) {
                 if (chat.name == bradcastchannelname) {
                     var message = msg.body;
                     if (msg.hasMedia) {
+                        var chats = await client.getChats();
                         var attachmentData = await msg.downloadMedia();
+                        save_attachmentData(attachmentData,chats);
                     } else {
                         var attachmentData = '';
-                    }
-                    var chats = await client.getChats();
-                    if (check_if_process_message(message)) {
-                        process_message(wagroupslist, chats, message, attachmentData);
-                    } else {
-                        try {
-                            send_group_message(wagroupslist, chats, message, attachmentData);
-                        } catch (error) {
-                            console.log(error);
+                        var chats = await client.getChats();
+                        if (check_if_process_message(message)) {
+                            process_message(wagroupslist, chats, message, attachmentData);
+                        } else {
+                            try {
+                                send_group_message(wagroupslist, chats, message, attachmentData);
+                            } catch (error) {
+                                console.log(error);
+                            }
                         }
                     }
                 }
@@ -209,9 +223,12 @@ client.on('message_create', async msg => {
     try {
         console.log("Message created. ID: " + msg['id']['id']);
         var remote = msg['id']['remote'];
+        var msgtype = msg.type;
         console.log("Message send from " + remote);
         if (remote == 'status@broadcast') {
             console.log("Not processing message since it is a status update message.");
+        } else if (msgtype == 'location' || msgtype == 'vcard') {
+            console.log("Not processing message since it is type " + msgtype);
         } else {
             if (msg.fromMe) {
                 let chat = await msg.getChat();
@@ -219,18 +236,20 @@ client.on('message_create', async msg => {
                     if (chat.name == bradcastchannelname) {
                         var message = msg.body;
                         if (msg.hasMedia) {
+                            var chats = await client.getChats();
                             var attachmentData = await msg.downloadMedia();
+                            save_attachmentData(attachmentData,chats);
                         } else {
                             var attachmentData = '';
-                        }
-                        var chats = await client.getChats();
-                        if (check_if_process_message(message)) {
-                            process_message(wagroupslist, chats, message, attachmentData);
-                        } else {
-                            try {
-                                send_group_message(wagroupslist, chats, message, attachmentData);
-                            } catch (error) {
-                                console.log(error);
+                            var chats = await client.getChats();
+                            if (check_if_process_message(message)) {
+                                process_message(wagroupslist, chats, message, attachmentData);
+                            } else {
+                                try {
+                                    send_group_message(wagroupslist, chats, message, attachmentData);
+                                } catch (error) {
+                                    console.log(error);
+                                }
                             }
                         }
                     }
@@ -258,6 +277,51 @@ client.on('message_ack', function (msg, ack) {
     }
 });
 
+var save_attachmentData = function (attachmentData,chats) {
+    if (attachmentData) {
+        var mime = attachmentData.mimetype;
+        var attachmentfilename = attachmentData.filename;
+        var data = attachmentData.data;
+        var attachmentid = crypto.randomBytes(5).toString('hex');
+        if (attachmentfilename) {
+            var filename = attachmentfilename;
+        } else {
+            var extension = mimetypes.extension(mime);
+            var filename = attachmentid + '.' + extension;            
+        }        
+        var filedir = attachmentdir + '/' + attachmentid;
+        if (!fs.existsSync(filedir)){
+            fs.mkdirSync(filedir);
+        }        
+        fs.writeFile(filedir + '/' + filename, data, (err) => {
+            if (err) { 
+                console.log("Saving attachment failed " + err);
+            } else {
+                console.log('File saved to ', filedir + '/' + filename);
+                var statement = "INSERT INTO attachments (attachmentid,filename,mimetype) " +
+                                "VALUES (?,?,?)";
+                db.run(statement, [attachmentid,filename,mime], function (err, row) {
+                    if (err) {
+                        console.log("Attachment saving failed " + err);
+                    } else {
+                        var info = "!bot@info\nAttachment saved with id " + attachmentid;
+                        var result = sendmessage(bradcastchannelname, chats, info);
+                        result.then(function (result) {
+                            console.log("Info Message sent to group " + bradcastchannelname);
+                        }, function (err) {
+                            console.log("Failed to sent to group " + bradcastchannelname);
+                        }).catch(function (err) {
+                            console.log("Failed to sent to group " + bradcastchannelname);
+                        });
+                    }
+                });                
+            }            
+        })
+    } else {
+        console.log("Attachment download failed");
+    }
+}
+
 var sendmessage = function (group, chats, message, attachmentData) {
     return new Promise(function (resolve, reject) {
         var promisearray = [];
@@ -269,14 +333,18 @@ var sendmessage = function (group, chats, message, attachmentData) {
             if (attachmentData == '' || attachmentData == null) {
                 promisearray.push(groupobj.sendMessage(message));
             } else {
-                var filename = '';
-                if (attachmentData.hasOwnProperty('filename')) {
-                    var filename = attachmentData.filename
-                }
-                if (filename != message) {
-                    promisearray.push(groupobj.sendMessage(message));
-                }
-                promisearray.push(groupobj.sendMessage(attachmentData));
+                promisearray.push(groupobj.sendMessage(message));
+                var attachmentqry = 'SELECT filename from attachments where attachmentid=?';
+                db.each(attachmentqry, [attachmentData], function (err, row) {
+                    if (err) {
+                        console.log("Failed to find attachment " + err);
+                    } else {
+                        filename = row.filename;
+                        var attachmentfile = attachmentdir + "/" + attachmentData + "/" + filename;
+                        var media = MessageMedia.fromFilePath(attachmentfile);
+                        promisearray.push(groupobj.sendMessage(media));
+                    }
+                });                
             }
             //var msgpromise = client.sendMessage(groupid, message);
             Promise.all(promisearray).then(function (result) {
@@ -411,6 +479,8 @@ var process_message = function (groupslist, chats, message, attachmentData) {
     //Groups list
     var regexinclude = /^(\!bot\@grpinc\[(.+?)\])/gm;
     var regexexclude = /^(\!bot\@grpexc\[(.+?)\])/gm;
+    //Attachments
+    var regexattachment = /^(\!bot\@attach\[(.+?)\])/gm;
     //Info
     var regexinfo = /^(\!bot\@info)/igm;
     //Help
@@ -545,6 +615,7 @@ var process_message = function (groupslist, chats, message, attachmentData) {
             scheduledate = scheduledate[0].replace(regexschedule, '$2');
             var groupsinclude = msg.match(regexinclude);
             var groupsexclude = msg.match(regexexclude);
+            var attachment = msg.match(regexattachment);
             //console.log(groupsinclude);
             let msggroupslist = groupslist;
             if (groupsinclude) {
@@ -561,18 +632,23 @@ var process_message = function (groupslist, chats, message, attachmentData) {
                     }
                 }
             }
+            if (attachment) {
+                var attachmentid = attachment[0].replace(regexattachment, '$2');
+                attachmentData = attachmentid;
+            }
             console.log("Sending message to groups " + JSON.stringify(msggroupslist));
             var schedulemsg = msg.replace(regexschedule, '');
             schedulemsg = schedulemsg.replace(regexinclude, '');
             schedulemsg = schedulemsg.replace(regexexclude, '');
+            schedulemsg = schedulemsg.replace(regexattachment, '');
             schedulemsg = schedulemsg.trim();
             var timestamp = moment().toString();
             //console.log(scheduledate);
             //console.log(schedulemsg);
             var varname = crypto.randomBytes(5).toString('hex');
-            var statement = "INSERT INTO scheduledtasks (jobname,schedule,message,status,groupslist,timestamp) " +
-                "VALUES(?,?,?,?,?,?);";
-            var params = [varname, scheduledate, schedulemsg, '', JSON.stringify(msggroupslist), timestamp];
+            var statement = "INSERT INTO scheduledtasks (jobname,schedule,message,status,groupslist,attachmentid,timestamp) " +
+                "VALUES(?,?,?,?,?,?,?);";
+            var params = [varname, scheduledate, schedulemsg, '', JSON.stringify(msggroupslist), attachmentData, timestamp];
             db.run(statement, params, function (err, row) {
                 if (err) {
                     console.log("Cron job creation failed " + err);
@@ -608,9 +684,10 @@ var process_message = function (groupslist, chats, message, attachmentData) {
                 console.log("Failed to sent to group " + bradcastchannelname);
             });
         }
-    } else if (regexinclude.test(msg) || regexexclude.test(msg)) {
+    } else if (regexinclude.test(msg) || regexexclude.test(msg) || regexattachment.test(msg)) {
         var groupsinclude = msg.match(regexinclude);
         var groupsexclude = msg.match(regexexclude);
+        var attachment = msg.match(regexattachment);
         //console.log(groupsinclude);
         let msggroupslist = groupslist;
         if (groupsinclude) {
@@ -627,9 +704,14 @@ var process_message = function (groupslist, chats, message, attachmentData) {
                 }
             }
         }
+        if (attachment) {
+            var attachmentid = attachment[0].replace(regexattachment, '$2');
+            attachmentData = attachmentid;
+        }        
         console.log("Sending message to groups " + JSON.stringify(msggroupslist));
         var schedulemsg = msg.replace(regexinclude, '');
         schedulemsg = schedulemsg.replace(regexexclude, '');
+        schedulemsg = schedulemsg.replace(regexattachment, '');
         schedulemsg = schedulemsg.trim();
         //console.log(scheduledate);
         //console.log(schedulemsg);
