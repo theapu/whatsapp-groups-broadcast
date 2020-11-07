@@ -293,11 +293,11 @@ var save_attachmentData = function (attachmentData,chats) {
         if (!fs.existsSync(filedir)){
             fs.mkdirSync(filedir);
         }        
-        fs.writeFile(filedir + '/' + filename, data, (err) => {
+        fs.writeFile(filedir + '/' + filename, data, {encoding: 'base64'}, (err) => {
             if (err) { 
                 console.log("Saving attachment failed " + err);
             } else {
-                console.log('File saved to ', filedir + '/' + filename);
+                console.log('File saved to ' + filedir + '/' + filename);
                 var statement = "INSERT INTO attachments (attachmentid,filename,mimetype) " +
                                 "VALUES (?,?,?)";
                 db.run(statement, [attachmentid,filename,mime], function (err, row) {
@@ -339,10 +339,15 @@ var sendmessage = function (group, chats, message, attachmentData) {
                     if (err) {
                         console.log("Failed to find attachment " + err);
                     } else {
-                        filename = row.filename;
+                        var filename = row.filename;
                         var attachmentfile = attachmentdir + "/" + attachmentData + "/" + filename;
-                        var media = MessageMedia.fromFilePath(attachmentfile);
-                        promisearray.push(groupobj.sendMessage(media));
+                        console.log("Sending message with attachment " + attachmentfile);
+                        try {
+                            var media = MessageMedia.fromFilePath(attachmentfile);
+                            promisearray.push(groupobj.sendMessage(media));
+                        } catch (err) {
+                            console.log("Attaching media failed " +  err);
+                        }
                     }
                 });                
             }
@@ -352,10 +357,10 @@ var sendmessage = function (group, chats, message, attachmentData) {
                 console.log('Message sent to group ' + groupname);
                 resolve(chatid);
             }, function (err) {
-                console.log(err);
+                console.log("Error sending message " + err);
                 reject("Message sending failed");
             }).catch(function (err) {
-                console.log(err);
+                console.log("Error sending message " + err);
                 console.log('Message sending failed');
                 send_alert_mails({
                     to: alertmaillist,
