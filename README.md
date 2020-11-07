@@ -87,6 +87,6 @@ This message will be delivered only to YAWA" and "Test group"
 !bot@grpinc["YAWA","Test group"]
 This message will be deliverd at 2020-11-05 20:00:00 to AMWA and Test group.
 
-### Delete scheduled message
+#### Delete scheduled message
 List scheduled messages using !bot@listmsgs. The result will be in {id}|{schedule time} {message text} format
 Delete the a scheduled message using !bot@del[{id}]
