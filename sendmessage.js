@@ -122,13 +122,14 @@ client.on('ready', function () {
             var scheduledate = row.schedule;
             var schedulemsg = row.message;
             let msggroupslist = JSON.parse(row.groupslist);
+            var attachmentData = '';
             console.log("Starting job with name " + jobname);
             var dateobj = moment(scheduledate, 'YYYY-MM-DD HH:mm:ss').toDate();
             if (moment(scheduledate, "YYYY-MM-DD HH:mm:ss").isBefore(moment())) {
                 console.log("Job " + jobname + " is scheduled to be executed in the past");
             } else {
                 try {
-                    global[jobname] = start_scheduled_job(dateobj, schedulemsg, msggroupslist, jobname);
+                    global[jobname] = start_scheduled_job(dateobj, schedulemsg, attachmentData, msggroupslist, jobname);
                     crontab[jobname] = global[jobname];
                 } catch (err) {
                     console.log("Failed to start scheduled job " + err);
