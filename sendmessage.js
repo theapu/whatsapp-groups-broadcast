@@ -500,6 +500,9 @@ var process_message = function (groupslist, chats, message, attachmentData) {
             "Use !bot@listgrps to get the list of groups, copy it and edit.\n" +
             "!bot@grpexc[<Groups to be excluded when sending message>] - Groups name list should be in array format. " +
             "Use !bot@listgrps to get the list of groups, copy it and edit.\n" +
+            "Use !bot@attach[<attachment id>] to attach a previously upload file to the broadcast group.\n" +
+            "When an attachment is sent to broadcast group an info message with " + 
+            "an id will be retunred. Use this id to attach this file to broadcast messages.\n" +
             "Use !bot@grpinc or !bot@grpexc after !bot@msg[<Time>] for scheduled message.\n" +
             "If !bot@grpinc or !bot@grpexc is used without !bot@msg[<Time>], message will be sent " +
             "immediatly to the groups specified according to the !bot@grpinc or !bot@grpexc list.\n" +

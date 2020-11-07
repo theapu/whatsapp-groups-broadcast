@@ -56,6 +56,10 @@ If group names are not specified using !bot@grpinc or !bot@grpexc, the message w
 Use !bot@grpinc or !bot@grpexc after !bot@msg[{Time}] for scheduled message.
   
 If !bot@grpinc or !bot@grpexc is used without !bot@msg[{Time}], message will be sent immediatly to the groups specified according to the !bot@grpinc or !bot@grpexc list.
+
+Use !bot@attach[{attachment id}] to attach a previously uploaded file to the broadcast group.
+
+When an attachment is sent to broadcast group an info message with an id will be retunred. Use this id to attach this file to broadcast messages.
   
 !bot@del[{id}] - To delete a scheduled message. Use !bot@listmsgs to find id. id is the the number before the first '|' of the response messages.
 
