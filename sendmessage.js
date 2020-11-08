@@ -74,7 +74,7 @@ db.serialize(function () {
         "jobname TEXT, schedule TEXT, message TEXT, status TEXT, groupslist TEXT, attachmentid TEXT, " +
         "timestamp TEXT)");
     db.run("CREATE TABLE IF NOT EXISTS attachments (id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-        "attachmentid TEXT, filename TEXT, mimetype TEXT, " +
+        "attachmentid TEXT, filename TEXT, mimetype TEXT, type TEXT, " +
         "timestamp TEXT)");
 });
 
@@ -167,17 +167,18 @@ client.on('message', async msg => {
         console.log("Message send from " + remote);
         if (remote == 'status@broadcast') {
             console.log("Not processing message since it is a status update message.");
-        } else if (msgtype == 'location' || msgtype == 'vcard') {
-            console.log("Not processing message since it is type " + msgtype);
         } else {
             let chat = await msg.getChat();
             if (chat.isGroup) {
                 if (chat.name == bradcastchannelname) {
                     var message = msg.body;
-                    if (msg.hasMedia) {
+                    if (msgtype == 'location' || msgtype =='vcard') {
+                        var chats = await client.getChats();
+                        save_special_attachmentData(msg,chats);
+                    } else if (msg.hasMedia) {
                         var chats = await client.getChats();
                         var attachmentData = await msg.downloadMedia();
-                        save_attachmentData(attachmentData,chats);
+                        save_attachmentData(attachmentData,chats,msgtype);
                     } else {
                         var attachmentData = '';
                         var chats = await client.getChats();
@@ -227,18 +228,19 @@ client.on('message_create', async msg => {
         console.log("Message send from " + remote);
         if (remote == 'status@broadcast') {
             console.log("Not processing message since it is a status update message.");
-        } else if (msgtype == 'location' || msgtype == 'vcard') {
-            console.log("Not processing message since it is type " + msgtype);
         } else {
             if (msg.fromMe) {
                 let chat = await msg.getChat();
                 if (chat.isGroup) {
                     if (chat.name == bradcastchannelname) {
                         var message = msg.body;
-                        if (msg.hasMedia) {
+                        if (msgtype == 'location' || msgtype =='vcard') {
+                            var chats = await client.getChats();
+                            save_special_attachmentData(msg,chats);
+                        } else if (msg.hasMedia) {
                             var chats = await client.getChats();
                             var attachmentData = await msg.downloadMedia();
-                            save_attachmentData(attachmentData,chats);
+                            save_attachmentData(attachmentData,chats,msgtype);
                         } else {
                             var attachmentData = '';
                             var chats = await client.getChats();
@@ -277,7 +279,7 @@ client.on('message_ack', function (msg, ack) {
     }
 });
 
-var save_attachmentData = function (attachmentData,chats) {
+var save_attachmentData = function (attachmentData,chats,msgtype) {
     if (attachmentData) {
         var mime = attachmentData.mimetype;
         var attachmentfilename = attachmentData.filename;
@@ -298,14 +300,14 @@ var save_attachmentData = function (attachmentData,chats) {
                 console.log("Saving attachment failed " + err);
             } else {
                 console.log('File saved to ' + filedir + '/' + filename);
-                var statement = "INSERT INTO attachments (attachmentid,filename,mimetype) " +
-                                "VALUES (?,?,?)";
-                db.run(statement, [attachmentid,filename,mime], function (err, row) {
+                var statement = "INSERT INTO attachments (attachmentid,filename,mimetype,type) " +
+                                "VALUES (?,?,?,?)";
+                db.run(statement, [attachmentid,filename,mime,msgtype], function (err, row) {
                     if (err) {
                         console.log("Attachment saving failed " + err);
                     } else {
                         var info = "!bot@info\nAttachment saved with id " + attachmentid;
-                        var result = sendmessage(bradcastchannelname, chats, info);
+                        var result = sendmessage(bradcastchannelname, chats, info, '');
                         result.then(function (result) {
                             console.log("Info Message sent to group " + bradcastchannelname);
                         }, function (err) {
@@ -317,6 +319,86 @@ var save_attachmentData = function (attachmentData,chats) {
                 });                
             }            
         })
+    } else {
+        console.log("Attachment download failed");
+    }
+}
+
+var save_special_attachmentData = function (msg,chats) {
+    if (msg) {
+        if(msg.type == 'location') {
+            console.log('Message with location sharing.');
+            var location = msg.location;
+            var mime = 'application/json';
+            var data = JSON.stringify(location);
+            var attachmentid = crypto.randomBytes(5).toString('hex');
+            var filename = attachmentid + '.json';
+            var filedir = attachmentdir + '/' + attachmentid;
+            if (!fs.existsSync(filedir)){
+                fs.mkdirSync(filedir);
+            }        
+            fs.writeFile(filedir + '/' + filename, data, (err) => {
+                if (err) { 
+                    console.log("Saving attachment failed " + err);
+                } else {
+                    console.log('File saved to ' + filedir + '/' + filename);
+                    var statement = "INSERT INTO attachments (attachmentid,filename,mimetype,type) " +
+                                    "VALUES (?,?,?,?)";
+                    db.run(statement, [attachmentid,filename,mime,msg.type], function (err, row) {
+                        if (err) {
+                            console.log("Attachment saving failed " + err);
+                        } else {
+                            var info = "!bot@info\nAttachment saved with id " + attachmentid;
+                            var result = sendmessage(bradcastchannelname, chats, info, '');
+                            result.then(function (result) {
+                                console.log("Info Message sent to group " + bradcastchannelname);
+                            }, function (err) {
+                                console.log("Failed to sent to group " + bradcastchannelname + " " + err);
+                            }).catch(function (err) {
+                                console.log("Failed to sent to group " + bradcastchannelname + " " + err);
+                            });
+                        }
+                    });                
+                }            
+            })            
+        } else if (msg.type == 'vcard') {
+            console.log('Message with contact sharing.');
+            var vcards = msg.vCards;
+            var mime = 'application/json';
+            var data = JSON.stringify(vcards);
+            var attachmentid = crypto.randomBytes(5).toString('hex');
+            var filename = attachmentid + '.json';
+            var filedir = attachmentdir + '/' + attachmentid;
+            if (!fs.existsSync(filedir)){
+                fs.mkdirSync(filedir);
+            }        
+            fs.writeFile(filedir + '/' + filename, data, (err) => {
+                if (err) { 
+                    console.log("Saving attachment failed " + err);
+                } else {
+                    console.log('File saved to ' + filedir + '/' + filename);
+                    var statement = "INSERT INTO attachments (attachmentid,filename,mimetype,type) " +
+                                    "VALUES (?,?,?,?)";
+                    db.run(statement, [attachmentid,filename,mime,msg.type], function (err, row) {
+                        if (err) {
+                            console.log("Attachment saving failed " + err);
+                        } else {
+                            var info = "!bot@info\nSorry, contact attachment sharing not supported.";
+                            var result = sendmessage(bradcastchannelname, chats, info, '');
+                            result.then(function (result) {
+                                console.log("Info Message sent to group " + bradcastchannelname);
+                            }, function (err) {
+                                console.log("Failed to sent to group " + bradcastchannelname + " " + err);
+                            }).catch(function (err) {
+                                console.log("Failed to sent to group " + bradcastchannelname + " " + err);
+                            });
+                        }
+                    });                
+                }            
+            })             
+        } else {
+            console.log("Attachment type can not be identified.");
+        }
     } else {
         console.log("Attachment download failed");
     }
@@ -334,19 +416,37 @@ var sendmessage = function (group, chats, message, attachmentData) {
                 promisearray.push(groupobj.sendMessage(message));
             } else {
                 promisearray.push(groupobj.sendMessage(message));
-                var attachmentqry = 'SELECT filename from attachments where attachmentid=?';
+                var attachmentqry = 'SELECT filename,type from attachments where attachmentid=?';
                 db.each(attachmentqry, [attachmentData], function (err, row) {
                     if (err) {
                         console.log("Failed to find attachment " + err);
                     } else {
                         var filename = row.filename;
+                        var type = row.type;
                         var attachmentfile = attachmentdir + "/" + attachmentData + "/" + filename;
-                        console.log("Sending message with attachment " + attachmentfile);
-                        try {
-                            var media = MessageMedia.fromFilePath(attachmentfile);
-                            promisearray.push(groupobj.sendMessage(media));
-                        } catch (err) {
-                            console.log("Attaching media failed " +  err);
+                        if (type == 'location') {
+                            console.log("Sending message with location in " + attachmentfile);
+                            fs.readFile(attachmentfile, 'utf8', function (err,data) {
+                                if (err) {                                    
+                                  console.log("Reading file failed " + err);
+                                } else {
+                                    try {
+                                        var savedlocation = JSON.parse(data);
+                                        var location = new Location(savedlocation.latitude, 
+                                          savedlocation.longitude, savedlocation.description);
+                                        promisearray.push(groupobj.sendMessage(location));                                        
+                                    } catch (error) {
+                                        console.log("Attaching location failed " + err);                                    }
+                                }                                
+                              });                            
+                        } else {
+                            console.log("Sending message with attachment " + attachmentfile);
+                            try {
+                                var media = MessageMedia.fromFilePath(attachmentfile);
+                                promisearray.push(groupobj.sendMessage(media));
+                            } catch (err) {
+                                console.log("Attaching media failed " + err);
+                            }
                         }
                     }
                 });                
@@ -505,7 +605,7 @@ var process_message = function (groupslist, chats, message, attachmentData) {
             "Use !bot@listgrps to get the list of groups, copy it and edit.\n" +
             "!bot@grpexc[<Groups to be excluded when sending message>] - Groups name list should be in array format. " +
             "Use !bot@listgrps to get the list of groups, copy it and edit.\n" +
-            "Use !bot@attach[<attachment id>] to attach a previously upload file to the broadcast group.\n" +
+            "Use !bot@attach[<attachment id>] to attach a previously uploaded file to the broadcast group.\n" +
             "When an attachment is sent to broadcast group an info message with " + 
             "an id will be retunred. Use this id to attach this file to broadcast messages.\n" +
             "Use !bot@grpinc or !bot@grpexc after !bot@msg[<Time>] for scheduled message.\n" +
@@ -517,7 +617,7 @@ var process_message = function (groupslist, chats, message, attachmentData) {
             "!bot@help - Shows the help information message.\n\n" +
             "Any message sent to Broadcast group that does not start with a command " +
             "will be broadcast to all groups";
-        var result = sendmessage(bradcastchannelname, chats, info);
+        var result = sendmessage(bradcastchannelname, chats, info, '');
         result.then(function (result) {
             console.log("Info Message sent to group " + bradcastchannelname);
         }, function (err) {
@@ -528,7 +628,7 @@ var process_message = function (groupslist, chats, message, attachmentData) {
     } else if (regexgrplist.test(msg)) {
         console.log("Listing groups.");
         var info = "!bot@info\n" + JSON.stringify(groupslist);
-        var result = sendmessage(bradcastchannelname, chats, info);
+        var result = sendmessage(bradcastchannelname, chats, info, '');
         result.then(function (result) {
             console.log("Info Message sent to group " + bradcastchannelname);
         }, function (err) {
@@ -551,7 +651,7 @@ var process_message = function (groupslist, chats, message, attachmentData) {
                     var message = row.message;
                     var info = '!bot@info\n';
                     info = info + id + '|' + scheduledate + '\n' + message;
-                    var result = sendmessage(bradcastchannelname, chats, info);
+                    var result = sendmessage(bradcastchannelname, chats, info, '');
                     result.then(function (result) {
                         console.log("Info Message sent to group " + bradcastchannelname);
                     }, function (err) {
@@ -575,7 +675,7 @@ var process_message = function (groupslist, chats, message, attachmentData) {
                     } else {
                         var info = '!bot@info\n';
                         info = info + id + '|' + scheduledate + '\n' + message;
-                        var result = sendmessage(bradcastchannelname, chats, info);
+                        var result = sendmessage(bradcastchannelname, chats, info, '');
                         result.then(function (result) {
                             console.log("Info Message sent to group " + bradcastchannelname);
                         }, function (err) {
@@ -607,7 +707,7 @@ var process_message = function (groupslist, chats, message, attachmentData) {
                 console.log("Delete job creation failed " + err);
             } else {
                 var info = "!bot@info\nDeleted Scheduld job with id " + scheduleid;
-                var result = sendmessage(bradcastchannelname, chats, info);
+                var result = sendmessage(bradcastchannelname, chats, info, '');
                 result.then(function (result) {
                     console.log("Info Message sent to group " + bradcastchannelname);
                 }, function (err) {
@@ -668,7 +768,7 @@ var process_message = function (groupslist, chats, message, attachmentData) {
                         crontab[varname] = global[varname];
                         var info = "!bot@info\nScheduld job added at " + scheduledate +
                             " with Jobname " + varname;
-                        var result = sendmessage(bradcastchannelname, chats, info);
+                        var result = sendmessage(bradcastchannelname, chats, info, '');
                         result.then(function (result) {
                             console.log("Info Message sent to group " + bradcastchannelname);
                         }, function (err) {
@@ -727,7 +827,7 @@ var process_message = function (groupslist, chats, message, attachmentData) {
             //console.log(attachmentData);
             send_group_message(msggroupslist, chats, schedulemsg, attachmentData);
             var info = "!bot@info\nBrodcasting message to " + msggroupslist;
-            var result = sendmessage(bradcastchannelname, chats, info);
+            var result = sendmessage(bradcastchannelname, chats, info, '');
             result.then(function (result) {
                 console.log("Info Message sent to group " + bradcastchannelname);
             }, function (err) {
@@ -741,7 +841,7 @@ var process_message = function (groupslist, chats, message, attachmentData) {
     } else {
         var info = "!bot@info\nCommand syntax not recognized. " +
             "Send !bot@help to view allowed commands";
-        var result = sendmessage(bradcastchannelname, chats, info);
+        var result = sendmessage(bradcastchannelname, chats, info, '');
         result.then(function (result) {
             console.log("Info Message sent to group " + bradcastchannelname);
         }, function (err) {
