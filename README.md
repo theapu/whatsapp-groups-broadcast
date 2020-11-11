@@ -4,7 +4,7 @@ Nodjes service to broadcast messages to multiple whatsapp group
 ## Introduction
 whatsapp-groups-broadcast is a nodejs service to send messages to multiple whatsapp groups and to send scheduled messages to groups.
 ### How it works
-It uses whatsapp-web.js node module to esatablish a whatsapp web connection. A group is created for users who have previlage to send broadcast messages. Any message sent to this group will be sent to a list of whatsapp groups specified. Bot text messages and attachments can be scheduled. 
+It uses whatsapp-web.js node module to esatablish a whatsapp web connection. A group is created for users who have previlage to send broadcast messages. Any message sent to this group will be sent to a list of whatsapp groups specified. Bot text messages and attachments can be scheduled. Contacts and Live location shring is not supported.
 
 ## Installation
 1. Install nodejs version 10+
