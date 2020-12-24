@@ -415,7 +415,9 @@ var sendmessage = function (group, chats, message, attachmentData) {
             if (attachmentData == '' || attachmentData == null) {
                 promisearray.push(groupobj.sendMessage(message));
             } else {
-                promisearray.push(groupobj.sendMessage(message));
+                if(message != '' && message != null) {
+                    promisearray.push(groupobj.sendMessage(message));
+                }
                 var attachmentqry = 'SELECT filename,type from attachments where attachmentid=?';
                 db.each(attachmentqry, [attachmentData], function (err, row) {
                     if (err) {
