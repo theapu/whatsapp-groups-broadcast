@@ -58,7 +58,7 @@ If !bot@grpinc or !bot@grpexc is used without !bot@msg[{Time}], message will be 
 
 Use !bot@attach[{attachment id}] to attach a previously uploaded file to the broadcast group.
 
-When an attachment is sent to broadcast group an info message with an id will be retunred. Use this id to attach this file to broadcast messages.
+When an attachment is forwarded to broadcast group an info message with an id will be retunred. Use this id to attach this file to broadcast messages. (With latest versions of whatsapp web if you sent attachment directly to group the base64 string of the file will be broadcast to the groups. The workaround is to forward the attachment to the broadcast group)
   
 !bot@del[{id}] - To delete a scheduled message. Use !bot@listmsgs to find id. id is the the number before the first '|' of the response messages.
 
