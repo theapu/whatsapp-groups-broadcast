@@ -4,7 +4,7 @@ Nodjes service to broadcast messages to multiple whatsapp group
 ## Introduction
 whatsapp-groups-broadcast is a nodejs service to send messages to multiple whatsapp groups and to send scheduled messages to groups.
 ### How it works
-It uses whatsapp-web.js node module to esatablish a whatsapp web connection. A group is created for users who have previlage to send broadcast messages. Any message sent to this group will be sent to a list of whatsapp groups specified. Bot text messages and attachments can be scheduled. Contacts and Live location shring is not supported.
+It uses whatsapp-web.js node module to esatablish a whatsapp web connection. A group is created for users who have previlage to send broadcast messages. Any message sent to this group will be sent to a list of whatsapp groups specified. Bot text messages and attachments (attachments broadcasting buggy since WhatsApp Web version v2.2049.10)  can be scheduled. Contacts and Live location shring is not supported.
 
 ## Installation
 1. Install nodejs version 10+
@@ -58,7 +58,7 @@ If !bot@grpinc or !bot@grpexc is used without !bot@msg[{Time}], message will be 
 
 Use !bot@attach[{attachment id}] to attach a previously uploaded file to the broadcast group.
 
-When an attachment is forwarded to broadcast group an info message with an id will be retunred. Use this id to attach this file to broadcast messages. (With latest versions of whatsapp web if you sent attachment directly to group the base64 string of the file will be broadcast to the groups. The workaround is to forward the attachment to the broadcast group)
+When an attachment is forwarded to broadcast group an info message with an id will be retunred. Use this id to attach this file to broadcast messages. (With latest versions of whatsapp web if you sent attachment directly to group the base64 string of the file will be broadcast to the groups. The workaround is to forward the attachment to the broadcast group) (attachments broadcasting buggy since WhatsApp Web version v2.2049.10) 
   
 !bot@del[{id}] - To delete a scheduled message. Use !bot@listmsgs to find id. id is the the number before the first '|' of the response messages.
 
