@@ -1,5 +1,5 @@
 # whatsapp-groups-broadcast
-Nodjes service to broadcast messages to multiple whatsapp group
+Nodjes service to broadcast messages to multiple whatsapp groups
 
 ## Introduction
 whatsapp-groups-broadcast is a nodejs service to send messages to multiple whatsapp groups and to send scheduled messages to groups.
